@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual envs
+.venv/
+venv/
+ENV/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Logs & temp
+*.log
+.tmp/
+.tmp*/
+
+# Model artifacts / checkpoints
+*.ckpt
+*.pt
+*.pth
+
+# Local runtime working dirs (demo writes under /tmp in containers)
+/tmp/

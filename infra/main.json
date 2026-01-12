@@ -1,0 +1,278 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.38.33.27573",
+      "templateHash": "17445131009824762467"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Azure region for all resources"
+      }
+    },
+    "deployApp": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Deploy the Container App resource (set false for a first pass before building/pushing the image)"
+      }
+    },
+    "logAnalyticsName": {
+      "type": "string",
+      "defaultValue": "[format('rf3-la-{0}', uniqueString(resourceGroup().id))]",
+      "metadata": {
+        "description": "Log Analytics workspace name"
+      }
+    },
+    "managedEnvName": {
+      "type": "string",
+      "defaultValue": "[format('rf3-acaenv-{0}', uniqueString(resourceGroup().id))]",
+      "metadata": {
+        "description": "Container Apps managed environment name"
+      }
+    },
+    "acrName": {
+      "type": "string",
+      "defaultValue": "[format('rf3acr{0}', toLower(uniqueString(resourceGroup().id)))]",
+      "metadata": {
+        "description": "Azure Container Registry name (must be globally unique, 5-50 lowercase alphanumerics)"
+      }
+    },
+    "containerAppName": {
+      "type": "string",
+      "defaultValue": "rf3-demo",
+      "metadata": {
+        "description": "Container App name"
+      }
+    },
+    "imageRepository": {
+      "type": "string",
+      "defaultValue": "rf3-demo",
+      "metadata": {
+        "description": "ACR repository name (without login server)"
+      }
+    },
+    "imageTag": {
+      "type": "string",
+      "defaultValue": "latest",
+      "metadata": {
+        "description": "Image tag"
+      }
+    },
+    "ingressWorkloadProfileName": {
+      "type": "string",
+      "defaultValue": "wp-ingress",
+      "metadata": {
+        "description": "Workload profile name used by ingress (must be set to an existing workload profile name in the environment)"
+      }
+    },
+    "ingressWorkloadProfileType": {
+      "type": "string",
+      "defaultValue": "D4",
+      "metadata": {
+        "description": "Workload profile type used by ingress (example: D4). Ingress cannot run on Consumption/Flex and requires >=2 nodes."
+      }
+    },
+    "gpuWorkloadProfileName": {
+      "type": "string",
+      "defaultValue": "wp-gpu",
+      "metadata": {
+        "description": "GPU workload profile name for RF3 workloads"
+      }
+    },
+    "gpuWorkloadProfileType": {
+      "type": "string",
+      "metadata": {
+        "description": "GPU workload profile type (example: Consumption-GPU-NC24-A100 for serverless A100, depending on region availability)"
+      }
+    },
+    "gpuMinimumCount": {
+      "type": "int",
+      "defaultValue": 0,
+      "metadata": {
+        "description": "Minimum instance count for GPU workload profile"
+      }
+    },
+    "gpuMaximumCount": {
+      "type": "int",
+      "defaultValue": 1,
+      "metadata": {
+        "description": "Maximum instance count for GPU workload profile"
+      }
+    }
+  },
+  "variables": {
+    "isConsumptionGpuProfile": "[startsWith(toLower(parameters('gpuWorkloadProfileType')), 'consumption')]",
+    "gpuWorkloadProfile": "[if(variables('isConsumptionGpuProfile'), createObject('name', parameters('gpuWorkloadProfileName'), 'workloadProfileType', parameters('gpuWorkloadProfileType')), createObject('name', parameters('gpuWorkloadProfileName'), 'workloadProfileType', parameters('gpuWorkloadProfileType'), 'minimumCount', parameters('gpuMinimumCount'), 'maximumCount', parameters('gpuMaximumCount')))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2022-10-01",
+      "name": "[parameters('logAnalyticsName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": {
+          "name": "PerGB2018"
+        },
+        "retentionInDays": 30,
+        "publicNetworkAccessForIngestion": "Enabled",
+        "publicNetworkAccessForQuery": "Enabled"
+      }
+    },
+    {
+      "type": "Microsoft.ContainerRegistry/registries",
+      "apiVersion": "2023-07-01",
+      "name": "[parameters('acrName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard"
+      },
+      "properties": {
+        "adminUserEnabled": true
+      }
+    },
+    {
+      "type": "Microsoft.App/managedEnvironments",
+      "apiVersion": "2025-10-02-preview",
+      "name": "[parameters('managedEnvName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "appLogsConfiguration": {
+          "destination": "log-analytics",
+          "logAnalyticsConfiguration": {
+            "customerId": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsName')), '2022-10-01').customerId]",
+            "sharedKey": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsName')), '2020-08-01').primarySharedKey]"
+          }
+        },
+        "ingressConfiguration": {
+          "workloadProfileName": "[parameters('ingressWorkloadProfileName')]"
+        },
+        "workloadProfiles": [
+          {
+            "name": "[parameters('ingressWorkloadProfileName')]",
+            "workloadProfileType": "[parameters('ingressWorkloadProfileType')]",
+            "minimumCount": 2,
+            "maximumCount": 10
+          },
+          "[variables('gpuWorkloadProfile')]"
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsName'))]"
+      ]
+    },
+    {
+      "condition": "[parameters('deployApp')]",
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2025-10-02-preview",
+      "name": "[parameters('containerAppName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "environmentId": "[resourceId('Microsoft.App/managedEnvironments', parameters('managedEnvName'))]",
+        "workloadProfileName": "[parameters('gpuWorkloadProfileName')]",
+        "configuration": {
+          "activeRevisionsMode": "Single",
+          "ingress": {
+            "external": true,
+            "targetPort": 8080,
+            "transport": "auto"
+          },
+          "secrets": [
+            {
+              "name": "acr-password",
+              "value": "[listCredentials(resourceId('Microsoft.ContainerRegistry/registries', parameters('acrName')), '2019-12-01-preview').passwords[0].value]"
+            }
+          ],
+          "registries": [
+            {
+              "server": "[reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('acrName')), '2023-07-01').loginServer]",
+              "username": "[listCredentials(resourceId('Microsoft.ContainerRegistry/registries', parameters('acrName')), '2019-12-01-preview').username]",
+              "passwordSecretRef": "acr-password"
+            }
+          ]
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "rf3",
+              "image": "[format('{0}/{1}:{2}', reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('acrName')), '2023-07-01').loginServer, parameters('imageRepository'), parameters('imageTag'))]",
+              "env": [
+                {
+                  "name": "RF3_CKPT_PATH",
+                  "value": "/models/rf3.ckpt"
+                },
+                {
+                  "name": "RF3_WORKDIR",
+                  "value": "/tmp/rf3-demo"
+                }
+              ],
+              "resources": {
+                "cpu": 8,
+                "memory": "32Gi",
+                "gpu": 1
+              },
+              "probes": [
+                {
+                  "type": "Liveness",
+                  "httpGet": {
+                    "path": "/health",
+                    "port": 8080
+                  },
+                  "initialDelaySeconds": 10,
+                  "periodSeconds": 10,
+                  "timeoutSeconds": 5,
+                  "failureThreshold": 6
+                }
+              ],
+              "volumeMounts": [
+                {
+                  "volumeName": "models",
+                  "mountPath": "/models"
+                }
+              ]
+            }
+          ],
+          "volumes": [
+            {
+              "name": "models",
+              "storageType": "EmptyDir"
+            }
+          ],
+          "scale": {
+            "minReplicas": 0,
+            "maxReplicas": 1
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ContainerRegistry/registries', parameters('acrName'))]",
+        "[resourceId('Microsoft.App/managedEnvironments', parameters('managedEnvName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "acrLoginServer": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('acrName')), '2023-07-01').loginServer]"
+    },
+    "image": {
+      "type": "string",
+      "value": "[format('{0}/{1}:{2}', reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('acrName')), '2023-07-01').loginServer, parameters('imageRepository'), parameters('imageTag'))]"
+    },
+    "managedEnvironmentId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.App/managedEnvironments', parameters('managedEnvName'))]"
+    },
+    "containerAppName": {
+      "type": "string",
+      "value": "[parameters('containerAppName')]"
+    }
+  }
+}

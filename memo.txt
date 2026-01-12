@@ -1,0 +1,5 @@
+
+基于以下github repo的文档和程序，构建一个RosettaFold3的模型推理demo，部署环境使用Azure Container Apps serverless GPU A100。
+https://github.com/RosettaCommons/foundry/blob/production/models/rf3/README.md
+
+我已经在terminal az login登录了。

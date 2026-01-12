@@ -1,0 +1,9 @@
+{
+  "name": "simple_protein_demo",
+  "components": [
+    {
+      "seq": "MKKFFDSRREQMKKFFDSRREQMKKFFDSRREQ",
+      "chain_id": "A"
+    }
+  ]
+}
