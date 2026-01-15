@@ -4,9 +4,9 @@
 
 - 模型推理服务：Azure Container Apps **serverless A100 GPU**
 - Web Demo（UI）：Azure Container Apps **普通 CPU**
-
+<!--
 在线体验（UI）：https://rf3-demo-ui.bluepebble-ef8ac46c.swedencentral.azurecontainerapps.io/
-
+-->
 ## RosettaFold3 简介
 
 RosettaFold3（RF3）是一种**全原子（all-atom）生物大分子结构预测网络**，可用于根据输入的氨基酸序列（以及可选的多链/复合物信息）预测三维结构；其整体效果可与主流开源模型相竞争。

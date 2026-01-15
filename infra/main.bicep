@@ -224,7 +224,7 @@ resource containerApp 'Microsoft.App/containerApps@2025-10-02-preview' = if (dep
       ]
       scale: {
         minReplicas: 0
-        maxReplicas: 1
+        maxReplicas: 3
       }
     }
   }
@@ -288,8 +288,8 @@ resource uiContainerApp 'Microsoft.App/containerApps@2025-10-02-preview' = if (d
         }
       ]
       scale: {
-        minReplicas: 1
-        maxReplicas: 2
+        minReplicas: 0
+        maxReplicas: 3
       }
     }
   }
